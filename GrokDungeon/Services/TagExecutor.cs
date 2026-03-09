@@ -1,7 +1,6 @@
-﻿using System.Xml;
+using System.Xml;
 using DefaultEcs;
 using GrokDungeon.Models;
-using Spectre.Console;
 
 namespace GrokDungeon.Services;
 
@@ -10,12 +9,14 @@ public class TagExecutor
     private readonly World _world;
     private readonly CombatResolver _combat;
     private readonly DiceService _dice;
+    private readonly GameConsole _console;
 
-    public TagExecutor(World world, CombatResolver combat, DiceService dice)
+    public TagExecutor(World world, CombatResolver combat, DiceService dice, GameConsole? console = null)
     {
         _world = world;
         _combat = combat;
         _dice = dice;
+        _console = console ?? new GameConsole();
     }
 
     public async Task ExecuteAsync(string xmlFragment)
@@ -52,17 +53,17 @@ public class TagExecutor
         var id = reader.GetAttribute("id");
         var field = reader.GetAttribute("field");
         var value = reader.GetAttribute("value");
-        
+
         var entity = FindEntityById(id);
         if (entity == default) return;
 
-        if (field == "hp" && int.TryParse(value, out int hp))
+        if (field == "hp" && int.TryParse(value, out var hp))
         {
             var health = entity.Get<HealthComponent>();
             health.Current = hp;
             entity.Set(health);
         }
-        else if (field == "gold" && int.TryParse(value, out int gold))
+        else if (field == "gold" && int.TryParse(value, out var gold))
         {
             var g = entity.Has<GoldComponent>() ? entity.Get<GoldComponent>() : new GoldComponent();
             g.Amount = gold;
@@ -74,7 +75,7 @@ public class TagExecutor
     {
         var type = reader.GetAttribute("type");
         var room = reader.GetAttribute("room");
-        
+
         var e = _world.CreateEntity();
         e.Set(new IdComponent { Value = Guid.NewGuid().ToString() });
         e.Set(new NameComponent { Value = type ?? "Unknown" });
@@ -83,15 +84,15 @@ public class TagExecutor
         e.Set(new StatsComponent { Strength = 10, Dexterity = 10, Constitution = 10 });
         e.Set(new ArmorClassComponent { Value = 10 });
         e.Set(new NpcTag());
-        
-        AnsiConsole.MarkupLine($"[dim]Spawned {type} in {room}[/]");
+
+        _console.ShowInfo($"Spawned {type} in {room}");
     }
 
     private void HandleAction(XmlReader reader)
     {
         var type = reader.GetAttribute("type");
         var targetId = reader.GetAttribute("target");
-        
+
         // Assuming player is the actor for now, or context dependent
         var player = FindPlayer();
         var target = FindEntityById(targetId);
@@ -99,7 +100,7 @@ public class TagExecutor
         if (type == "attack" && target != default)
         {
             var result = _combat.ResolveAttack(player, target);
-            AnsiConsole.MarkupLine($"[bold red]{result}[/]");
+            _console.ShowCombatResult(result);
         }
         else if (type == "move")
         {
@@ -125,7 +126,7 @@ public class TagExecutor
             var hp = entity.Get<HealthComponent>();
             hp.Current = Math.Min(hp.Max, hp.Current + val);
             entity.Set(hp);
-            AnsiConsole.MarkupLine($"[green]{GetEntityName(entity)} healed for {val} HP.[/]");
+            _console.ShowStatus($"{GetEntityName(entity)} healed for {val} HP.");
         }
     }
 

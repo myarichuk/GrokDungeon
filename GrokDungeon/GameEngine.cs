@@ -1,4 +1,3 @@
-﻿using System.Text;
 using System.Xml;
 using DefaultEcs;
 using GrokDungeon.Models;
@@ -13,7 +12,8 @@ public class GameEngine(
     IChatClient chatClient,
     IDocumentStore store,
     World world,
-    TagExecutor tagExecutor)
+    TagExecutor tagExecutor,
+    GameConsole gameConsole)
 {
     private const string SystemPrompt = @"
 You are the Dungeon Master for GrokDungeon 
@@ -49,17 +49,18 @@ Example:
         // Load Player from RavenDB or create new
         using var session = store.OpenAsyncSession();
         var playerDoc = await session.LoadAsync<Player>("players/1");
-        
+
         var playerEntity = world.CreateEntity();
         playerEntity.Set(new PlayerTag());
         playerEntity.Set(new IdComponent { Value = "players/1" });
-        
+
         if (playerDoc != null)
         {
             playerEntity.Set(new NameComponent { Value = playerDoc.Name });
             playerEntity.Set(new HealthComponent { Current = playerDoc.Health, Max = playerDoc.MaxHealth });
-            playerEntity.Set(new StatsComponent { 
-                Strength = playerDoc.Stats["Strength"], 
+            playerEntity.Set(new StatsComponent
+            {
+                Strength = playerDoc.Stats["Strength"],
                 Dexterity = playerDoc.Stats["Dexterity"],
                 Constitution = playerDoc.Stats["Constitution"]
             });
@@ -73,20 +74,20 @@ Example:
             playerEntity.Set(new HealthComponent { Current = 20, Max = 20 });
             playerEntity.Set(new StatsComponent { Strength = 14, Dexterity = 12, Constitution = 14 });
             playerEntity.Set(new LocationComponent { RoomId = "rooms/start" });
-            playerEntity.Set(new InventoryComponent { Items = new List<string>() });
+            playerEntity.Set(new InventoryComponent { Items = [] });
         }
-        
+
         playerEntity.Set(new ArmorClassComponent { Value = 14 });
         playerEntity.Set(new WeaponComponent { Name = "Longsword", DamageDice = "1d8" });
     }
 
     public async Task RunLoopAsync()
     {
-        AnsiConsole.Write(new FigletText("Grok Dungeon II").Color(Color.Purple));
-        
+        gameConsole.ShowBanner();
+
         while (true)
         {
-            DisplayHUD();
+            DisplayHud();
             AnsiConsole.Markup("[green]>[/] ");
             var input = Console.ReadLine();
             if (string.IsNullOrWhiteSpace(input)) continue;
@@ -96,13 +97,13 @@ Example:
         }
     }
 
-    private void DisplayHUD()
+    private void DisplayHud()
     {
         var player = world.GetEntities().With<PlayerTag>().AsEnumerable().First();
         var hp = player.Get<HealthComponent>();
         var loc = player.Get<LocationComponent>();
-        
-        AnsiConsole.Write(new Rule($"[red]HP: {hp.Current}/{hp.Max}[/] | [blue]Loc: {loc.RoomId}[/]").LeftJustified());
+
+        gameConsole.ShowHud(hp, loc);
     }
 
     private async Task ProcessTurnAsync(string input)
@@ -112,32 +113,31 @@ Example:
 
         var messages = new List<ChatMessage>
         {
-            new ChatMessage(ChatRole.System, SystemPrompt),
-            new ChatMessage(ChatRole.User, context)
+            new(ChatRole.System, SystemPrompt),
+            new(ChatRole.User, context)
         };
 
-        await AnsiConsole.Status().StartAsync("Thinking...", async ctx =>
+        await AnsiConsole.Status().StartAsync("Thinking...", async _ =>
         {
             var response = await chatClient.CompleteAsync(messages);
             var text = response.Message.Text ?? "";
-            
+
             // Extract XML
             var xmlStart = text.IndexOf("<response>");
             var xmlEnd = text.LastIndexOf("</response>");
-            if (xmlStart == -1 || xmlEnd == -1) 
+            if (xmlStart == -1 || xmlEnd == -1)
             {
-                AnsiConsole.MarkupLine("[red]Invalid AI response format.[/]");
+                gameConsole.ShowError("Invalid AI response format.");
                 return;
             }
-            
+
             var xml = text.Substring(xmlStart, (xmlEnd - xmlStart) + 11);
-            
+
             // Parse Narrative
             var doc = new XmlDocument();
             doc.LoadXml(xml);
-            var narrative = doc.SelectSingleNode("//narrative")?.InnerText;
-            AnsiConsole.MarkupLine($"[italic yellow]{narrative}[/]");
-            AnsiConsole.WriteLine();
+            var narrative = doc.SelectSingleNode("//narrative")?.InnerText ?? "...";
+            gameConsole.ShowNarrative(narrative);
 
             // Execute GM Logic
             var gmOnly = doc.SelectSingleNode("//gm_only");
@@ -146,7 +146,7 @@ Example:
                 await tagExecutor.ExecuteAsync(gmOnly.InnerXml);
             }
         });
-        
+
         // Save State (Simplified: just updating the RavenDB doc from ECS)
         await SaveStateAsync();
     }
@@ -155,14 +155,13 @@ Example:
     {
         using var session = store.OpenAsyncSession();
         var playerEntity = world.GetEntities().With<PlayerTag>().AsEnumerable().First();
-        
-        var playerDoc = await session.LoadAsync<Player>("players/1");
-        if (playerDoc == null) playerDoc = new Player();
+
+        var playerDoc = await session.LoadAsync<Player>("players/1") ?? new Player();
 
         playerDoc.Health = playerEntity.Get<HealthComponent>().Current;
         playerDoc.CurrentRoomId = playerEntity.Get<LocationComponent>().RoomId;
         // Sync other stats...
-        
+
         await session.StoreAsync(playerDoc);
         await session.SaveChangesAsync();
     }
