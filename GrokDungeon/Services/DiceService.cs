@@ -12,7 +12,7 @@ public class DiceService
         _dice = DiceFactory.Create();
     }
 
-    public int Roll(string expression)
+    public virtual int Roll(string expression)
     {
         // Handles "1d20", "2d6+3", etc.
         return _dice.Roll(expression).AsSum();

@@ -1,4 +1,5 @@
 ﻿using DefaultEcs;
+using System.Collections.Generic;
 using GrokDungeon.Models;
 using GrokDungeon.Services;
 using Xunit;
@@ -11,7 +12,7 @@ public class CombatTests
     public void Attack_Hits_WhenRollIsHigh()
     {
         var world = new World();
-        var dice = new DiceService();
+        var dice = new StubDiceService(19, 1);
         var resolver = new CombatResolver(dice);
 
         var attacker = world.CreateEntity();
@@ -36,5 +37,25 @@ public class CombatTests
         var dice = new DiceService();
         var result = dice.Roll("1d1+5");
         Assert.Equal(6, result);
+    }
+
+    private sealed class StubDiceService : DiceService
+    {
+        private readonly Queue<int> _rolls;
+
+        public StubDiceService(params int[] rolls)
+        {
+            _rolls = new Queue<int>(rolls);
+        }
+
+        public override int Roll(string expression)
+        {
+            if (_rolls.Count == 0)
+            {
+                return base.Roll(expression);
+            }
+
+            return _rolls.Dequeue();
+        }
     }
 }
