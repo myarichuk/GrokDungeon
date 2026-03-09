@@ -3,15 +3,8 @@ using GrokDungeon.Models;
 
 namespace GrokDungeon.Services;
 
-public class CombatResolver
+public class CombatResolver(DiceService dice)
 {
-    private readonly DiceService _dice;
-
-    public CombatResolver(DiceService dice)
-    {
-        _dice = dice;
-    }
-
     public string ResolveAttack(Entity attacker, Entity defender)
     {
         if (!attacker.Has<StatsComponent>() || !defender.Has<ArmorClassComponent>())
@@ -23,7 +16,7 @@ public class CombatResolver
         // Calculate modifier (Score - 10) / 2
         int strMod = (attStats.Strength - 10) / 2;
         
-        int attackRoll = _dice.Roll("1d20");
+        int attackRoll = dice.Roll("1d20");
         int totalHit = attackRoll + strMod;
 
         string weaponName = attacker.Has<WeaponComponent>() ? attacker.Get<WeaponComponent>().Name : "fists";
@@ -31,7 +24,7 @@ public class CombatResolver
 
         if (attackRoll == 20) // Crit
         {
-            int damage = _dice.Roll(damageDice) + _dice.Roll(damageDice) + strMod;
+            int damage = dice.Roll(damageDice) + dice.Roll(damageDice) + strMod;
             ApplyDamage(defender, damage);
             return $"CRITICAL HIT! {GetName(attacker)} strikes {GetName(defender)} with {weaponName} for {damage} damage!";
         }
@@ -41,7 +34,7 @@ public class CombatResolver
         }
         else if (totalHit >= defAc)
         {
-            int damage = _dice.Roll(damageDice) + strMod;
+            int damage = dice.Roll(damageDice) + strMod;
             ApplyDamage(defender, damage);
             return $"{GetName(attacker)} hits {GetName(defender)} with {weaponName} for {damage} damage.";
         }

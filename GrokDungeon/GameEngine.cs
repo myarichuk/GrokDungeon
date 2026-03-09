@@ -9,15 +9,14 @@ using Spectre.Console;
 
 namespace GrokDungeon;
 
-public class GameEngine
+public class GameEngine(
+    IChatClient chatClient,
+    IDocumentStore store,
+    World world,
+    TagExecutor tagExecutor)
 {
-    private readonly IChatClient _chatClient;
-    private readonly IDocumentStore _store;
-    private readonly World _world;
-    private readonly TagExecutor _tagExecutor;
-
     private const string SystemPrompt = @"
-You are the Dungeon Master for GrokDungeon (Phase 2).
+You are the Dungeon Master for GrokDungeon 
 Rules: 5th Edition D&D simplified.
 Output Format:
 STRICT XML ONLY. No markdown, no conversational text outside tags.
@@ -45,21 +44,13 @@ Example:
 </response>
 ";
 
-    public GameEngine(IChatClient chatClient, IDocumentStore store, World world, TagExecutor tagExecutor)
-    {
-        _chatClient = chatClient;
-        _store = store;
-        _world = world;
-        _tagExecutor = tagExecutor;
-    }
-
     public async Task InitializeAsync()
     {
         // Load Player from RavenDB or create new
-        using var session = _store.OpenAsyncSession();
+        using var session = store.OpenAsyncSession();
         var playerDoc = await session.LoadAsync<Player>("players/1");
         
-        var playerEntity = _world.CreateEntity();
+        var playerEntity = world.CreateEntity();
         playerEntity.Set(new PlayerTag());
         playerEntity.Set(new IdComponent { Value = "players/1" });
         
@@ -107,7 +98,7 @@ Example:
 
     private void DisplayHUD()
     {
-        var player = _world.GetEntities().With<PlayerTag>().AsEnumerable().First();
+        var player = world.GetEntities().With<PlayerTag>().AsEnumerable().First();
         var hp = player.Get<HealthComponent>();
         var loc = player.Get<LocationComponent>();
         
@@ -116,7 +107,7 @@ Example:
 
     private async Task ProcessTurnAsync(string input)
     {
-        var player = _world.GetEntities().With<PlayerTag>().AsEnumerable().First();
+        var player = world.GetEntities().With<PlayerTag>().AsEnumerable().First();
         var context = $"Player HP: {player.Get<HealthComponent>().Current}. Location: {player.Get<LocationComponent>().RoomId}. Input: {input}";
 
         var messages = new List<ChatMessage>
@@ -127,7 +118,7 @@ Example:
 
         await AnsiConsole.Status().StartAsync("Thinking...", async ctx =>
         {
-            var response = await _chatClient.CompleteAsync(messages);
+            var response = await chatClient.CompleteAsync(messages);
             var text = response.Message.Text ?? "";
             
             // Extract XML
@@ -152,7 +143,7 @@ Example:
             var gmOnly = doc.SelectSingleNode("//gm_only");
             if (gmOnly != null)
             {
-                await _tagExecutor.ExecuteAsync(gmOnly.InnerXml);
+                await tagExecutor.ExecuteAsync(gmOnly.InnerXml);
             }
         });
         
@@ -162,8 +153,8 @@ Example:
 
     private async Task SaveStateAsync()
     {
-        using var session = _store.OpenAsyncSession();
-        var playerEntity = _world.GetEntities().With<PlayerTag>().AsEnumerable().First();
+        using var session = store.OpenAsyncSession();
+        var playerEntity = world.GetEntities().With<PlayerTag>().AsEnumerable().First();
         
         var playerDoc = await session.LoadAsync<Player>("players/1");
         if (playerDoc == null) playerDoc = new Player();
