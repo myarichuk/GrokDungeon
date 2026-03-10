@@ -49,17 +49,24 @@ public class GrokDungeonModule : Module
         {
             var config = c.Resolve<GrokDungeonConfig>();
             var configuration = c.Resolve<IConfiguration>();
-            var apiKey = configuration["XAI_API_KEY"];
+
+            var providerName = config.AiProviders.SelectedProvider;
+            if (!config.AiProviders.Providers.TryGetValue(providerName, out var providerConfig))
+            {
+                throw new InvalidOperationException($"AI Provider '{providerName}' is not configured.");
+            }
+
+            var apiKey = configuration[providerConfig.ApiKeyEnvVar];
 
             if (string.IsNullOrEmpty(apiKey))
             {
-                throw new InvalidOperationException("XAI_API_KEY not found in User Secrets or Environment Variables.");
+                throw new InvalidOperationException($"{providerConfig.ApiKeyEnvVar} not found in Configuration/Environment Variables.");
             }
 
             return new OpenAIClient(new ApiKeyCredential(apiKey), new OpenAIClientOptions
             {
-                Endpoint = new Uri(config.AiEndpoint)
-            }).AsChatClient(config.AiModel);
+                Endpoint = new Uri(providerConfig.Endpoint)
+            }).AsChatClient(providerConfig.Model);
         }).As<IChatClient>().SingleInstance();
 
         // Register ECS World
