@@ -5,11 +5,10 @@ namespace GrokDungeon.Services;
 
 public class DiceService
 {
-    private readonly Dice _dice;
+    private static readonly Dice _dice = DiceFactory.Create();
 
     public DiceService()
     {
-        _dice = DiceFactory.Create();
     }
 
     public virtual int Roll(string expression)
