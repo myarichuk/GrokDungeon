@@ -1,0 +1,92 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:GrokDungeon.CharacterManager.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="GrokDungeon.CharacterManager.Views.MainView"
+             x:DataType="vm:MainViewModel">
+  <Design.DataContext>
+    <vm:MainViewModel />
+  </Design.DataContext>
+
+  <Grid ColumnDefinitions="300,*">
+
+    <!-- Left Panel: Character List & Creation -->
+    <Border Grid.Column="0" BorderBrush="Gray" BorderThickness="0,0,1,0" Padding="10">
+      <StackPanel Spacing="10">
+        <TextBlock Text="Character Manager" FontWeight="Bold" FontSize="18"/>
+
+        <!-- Create Character Form -->
+        <Border BorderBrush="LightGray" BorderThickness="1" Padding="10" CornerRadius="4">
+          <StackPanel Spacing="10">
+            <TextBlock Text="Create New Character" FontWeight="Bold"/>
+            <TextBox Text="{Binding NewCharacterName}" Watermark="Character Name"/>
+            <ComboBox ItemsSource="{Binding Classes}" SelectedItem="{Binding SelectedClass}" HorizontalAlignment="Stretch"/>
+            <Button Content="Create" Command="{Binding CreateCharacterCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+          </StackPanel>
+        </Border>
+
+        <!-- Character List -->
+        <TextBlock Text="Your Characters:" FontWeight="Bold" Margin="0,10,0,0"/>
+        <ListBox ItemsSource="{Binding Characters}" SelectedItem="{Binding SelectedCharacter}">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding Name}"/>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </StackPanel>
+    </Border>
+
+    <!-- Right Panel: Character Details -->
+    <Border Grid.Column="1" Padding="20">
+      <Panel>
+        <StackPanel IsVisible="{Binding SelectedCharacter, Converter={x:Static ObjectConverters.IsNotNull}}" Spacing="15">
+          <TextBlock Text="Character Profile" FontSize="24" FontWeight="Bold"/>
+
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="Name:" FontWeight="Bold"/>
+            <TextBlock Text="{Binding SelectedCharacter.Name}"/>
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="Level:" FontWeight="Bold"/>
+            <TextBlock Text="{Binding SelectedCharacter.Level}"/>
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="HP:" FontWeight="Bold"/>
+            <TextBlock Text="{Binding SelectedCharacter.Health}"/>
+            <TextBlock Text="/"/>
+            <TextBlock Text="{Binding SelectedCharacter.MaxHealth}"/>
+          </StackPanel>
+
+          <TextBlock Text="Stats" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"/>
+          <ItemsControl ItemsSource="{Binding SelectedCharacter.Stats}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Text="{Binding Key}" Width="100"/>
+                  <TextBlock Text="{Binding Value}"/>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <TextBlock Text="Inventory" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"/>
+          <ItemsControl ItemsSource="{Binding SelectedCharacter.Inventory}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding Name}"/>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+        </StackPanel>
+        <TextBlock IsVisible="{Binding SelectedCharacter, Converter={x:Static ObjectConverters.IsNull}}"
+                   Text="Select a character to view details." HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="Gray"/>
+      </Panel>
+    </Border>
+  </Grid>
+</UserControl>
